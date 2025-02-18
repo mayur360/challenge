@@ -10,7 +10,6 @@ import org.slf4j.LoggerFactory;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Queue;
 
 public class OrderManagementSystem {
     private static final Logger LOGGER = LoggerFactory.getLogger(OrderManagementSystem.class);
@@ -30,26 +29,52 @@ public class OrderManagementSystem {
     public synchronized void placeOrder(Order order, List<Action> actions) {
         // Try to place in ideal storage
         //Handle Hot order
+        Instant orderPlaceTime = Instant.now();
         switch (order.getTemp()) {
             case "hot":
-                handleHotOrders(order, actions);
+                handleHotOrders(order, actions, orderPlaceTime);
                 break;
             case "cold":
-                handleColdOrders(order, actions);
+                handleColdOrders(order, actions, orderPlaceTime);
                 break;
             default:
-                handleRoomOrders(order, actions);
+                handleRoomOrders(order, actions, orderPlaceTime);
                 break;
         }
     }
 
     // Pickup logic
-    public synchronized void pickupOrder(String orderId, List<Action> actions) {
+    public synchronized void pickupOrder(Order order, List<Action> actions) {
         LOGGER.info("Thread name "+Thread.currentThread().getName());
         String pickupThreadName = Thread.currentThread().getName();
+        String orderId = order.getId();
 
-        if (cooler.pickupOrder(orderId, actions) || heater.pickupOrder(orderId, actions) || shelf.pickupOrder(orderId, actions) ) {
-            actions.add(new Action(Instant.now(), orderId, Action.PICKUP));
+        switch (order.getTemp()) {
+            case "hot":
+                if(heater.pickupOrder(orderId, actions)){
+                    actions.add(new Action(Instant.now(), orderId, Action.PICKUP));
+                    return;
+                }
+                if (shelf.pickupOrder(orderId, actions)) {
+                    actions.add(new Action(Instant.now(), orderId, Action.PICKUP));
+                    return;
+                }
+                break;
+            case "cold":
+                if(cooler.pickupOrder(orderId, actions)){
+                    actions.add(new Action(Instant.now(), orderId, Action.PICKUP));
+                    return;
+                }
+                if (shelf.pickupOrder(orderId, actions)) {
+                    actions.add(new Action(Instant.now(), orderId, Action.PICKUP));
+                    return;
+                }
+                break;
+            default:
+                if(shelf.pickupOrder(orderId, actions)){
+                actions.add(new Action(Instant.now(), orderId, Action.PICKUP));
+            }
+            break;
         }
     }
 
@@ -62,23 +87,12 @@ public class OrderManagementSystem {
         return actionLog;
     }
 
-    public void postMove(List<Action> actions, Order order){
-        boolean exists = actions.stream()
-                .anyMatch(action -> order.getId().equals(action.getId()));
-        if(!exists){
-            order.setTimestamp(Instant.now());
-            actions.add(new Action(Instant.now(), order.getId(), Action.PLACE));
-            return;
-        }
-        actions.add(new Action(Instant.now(), order.getId(), Action.MOVE));
-    }
-
-    public void handleHotOrders(Order order, List<Action> actions){
+    public void handleHotOrders(Order order, List<Action> actions, Instant now){
         LOGGER.info("Hot order received Order id : "+order.getId());
         if(heater.addOrder(order)){
             LOGGER.info("Hot Order place in heater");
-            order.setTimestamp(Instant.now());
-            actions.add(new Action(Instant.now(), order.getId(), Action.PLACE));
+            order.setTimestamp(now);
+            actions.add(new Action(now, order.getId(), Action.PLACE));
             return;
         }
         if(shelf.moveOrder(order)){
@@ -91,7 +105,7 @@ public class OrderManagementSystem {
                 return;
             }
             order.setTimestamp(Instant.now());
-            actions.add(new Action(Instant.now(), order.getId(), Action.PLACE));
+            actions.add(new Action(now, order.getId(), Action.PLACE));
             return;
         }
         LOGGER.info("Heater was full and Shelf is also full so we are checking space in cooler");
@@ -106,7 +120,7 @@ public class OrderManagementSystem {
             if(shelf.moveOrder(order)){
                 LOGGER.info(order.getId()+" Hot order moved to shelf with reduced freshness to half = "+ order.getFreshness());
                 order.setTimestamp(Instant.now());
-                actions.add(new Action(Instant.now(), order.getId(), Action.PLACE));
+                actions.add(new Action(now, order.getId(), Action.PLACE));
             }
             return;
         }
@@ -124,7 +138,7 @@ public class OrderManagementSystem {
             if (shelf.moveOrder(order)){
                 LOGGER.info(order.getId()+" Added new order to shelf after discrading old order from shelf as we didnt find cold order on shelf");
                 order.setTimestamp(Instant.now());
-                actions.add(new Action(Instant.now(), order.getId(), Action.PLACE));
+                actions.add(new Action(now, order.getId(), Action.PLACE));
             }
             return;
         }
@@ -136,17 +150,17 @@ public class OrderManagementSystem {
             if(shelf.moveOrder(order)){
                 LOGGER.info(order.getId()+" New order added to shelf");
                 order.setTimestamp(Instant.now());
-                actions.add(new Action(Instant.now(), order.getId(), Action.PLACE));
+                actions.add(new Action(now, order.getId(), Action.PLACE));
             }
         }
 
     }
 
-    public void handleColdOrders(Order order, List<Action> actions){
+    public void handleColdOrders(Order order, List<Action> actions, Instant now){
         LOGGER.info("Cold order received Order id : "+order.getId());
         if(cooler.addOrder(order)){
             order.setTimestamp(Instant.now());
-            actions.add(new Action(Instant.now(), order.getId(), Action.PLACE));
+            actions.add(new Action(now, order.getId(), Action.PLACE));
             return;
         }
         if(shelf.moveOrder(order)){
@@ -155,7 +169,7 @@ public class OrderManagementSystem {
                     .anyMatch(action -> order.getId().equals(action.getId()));
             if(!exists){
                 order.setTimestamp(Instant.now());
-                actions.add(new Action(Instant.now(), order.getId(), Action.PLACE));
+                actions.add(new Action(now, order.getId(), Action.PLACE));
                 return;
             }
             actions.add(new Action(Instant.now(), order.getId(), Action.MOVE));
@@ -174,7 +188,7 @@ public class OrderManagementSystem {
             if(shelf.moveOrder(order)){
                 LOGGER.info(order.getId()+" Cold order moved to shelf with reduced freshness to half = "+ order.getFreshness());
                 order.setTimestamp(Instant.now());
-                actions.add(new Action(Instant.now(), order.getId(), Action.PLACE));
+                actions.add(new Action(now, order.getId(), Action.PLACE));
             }
             return;
         }
@@ -191,7 +205,7 @@ public class OrderManagementSystem {
             if (shelf.moveOrder(order)){
                 LOGGER.info(order.getId()+" Added new order to shelf after discrading old order from shelf as we didnt find hot order on shelf with half of freshness");
                 order.setTimestamp(Instant.now());
-                actions.add(new Action(Instant.now(), order.getId(), Action.PLACE));
+                actions.add(new Action(now, order.getId(), Action.PLACE));
             }
             return;
         }
@@ -203,17 +217,17 @@ public class OrderManagementSystem {
             if(shelf.moveOrder(order)){
                 LOGGER.info(order.getId()+" New order added to shelf and reduced freshness to half "+order.getFreshness());
                 order.setTimestamp(Instant.now());
-                actions.add(new Action(Instant.now(), order.getId(), Action.PLACE));
+                actions.add(new Action(now, order.getId(), Action.PLACE));
             }
         }
     }
 
-    public void handleRoomOrders(Order order, List<Action> actions){
+    public void handleRoomOrders(Order order, List<Action> actions, Instant now){
         LOGGER.info("Order with Room temperature received");
         if(shelf.addOrder(order)){
             LOGGER.info("Normal Order put on shelf");
             order.setTimestamp(Instant.now());
-            actions.add(new Action(Instant.now(), order.getId(), Action.PLACE));
+            actions.add(new Action(now, order.getId(), Action.PLACE));
             return;
         }
         LOGGER.info("Shelf is full so checking space in heater and if heater doesn't has space then we will check in cooler");
@@ -229,7 +243,7 @@ public class OrderManagementSystem {
                     if(shelf.moveOrder(order)){
                         order.setTimestamp(Instant.now());
                         //updateAction(actions, order.getId(), Action.PLACE);
-                        actions.add(new Action(Instant.now(), order.getId(), Action.PLACE));
+                        actions.add(new Action(now, order.getId(), Action.PLACE));
                         return;
                     }
                 }
@@ -246,7 +260,7 @@ public class OrderManagementSystem {
                     if(shelf.moveOrder(order)){
                         order.setTimestamp(Instant.now());
                         //updateAction(actions, order.getId(), Action.PLACE);
-                        actions.add(new Action(Instant.now(), order.getId(), Action.PLACE));
+                        actions.add(new Action(now, order.getId(), Action.PLACE));
                         return;
                     }
                 }
@@ -262,7 +276,7 @@ public class OrderManagementSystem {
         if (shelf.moveOrder(order)){
             order.setTimestamp(Instant.now());
             //updateAction(actions, order.getId(), Action.PLACE);
-            actions.add(new Action(Instant.now(), order.getId(), Action.PLACE));
+            actions.add(new Action(now, order.getId(), Action.PLACE));
         }
     }
 

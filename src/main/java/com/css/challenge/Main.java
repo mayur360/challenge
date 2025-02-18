@@ -56,7 +56,7 @@ public class Main implements Runnable {
 
             // ------ Simulation harness logic goes here using rate, min and max ----
 
-            ExecutorService pickupExecutor = Executors.newFixedThreadPool(problem.getOrders().size());
+            ScheduledExecutorService pickupExecutor = Executors.newScheduledThreadPool(problem.getOrders().size());
             OrderManagementSystem oms = new OrderManagementSystem();
             Random random = new Random();
             List<Action> actions = new ArrayList<>();
@@ -67,7 +67,7 @@ public class Main implements Runnable {
                 LOGGER.info("Order placed "+order.getId());
                 Thread.sleep(rate.toMillis());
                 // Schedule pickup after a random delay (4-8 seconds)
-                pickupExecutor.execute(()->oms.pickupOrder(order.getId(),actions));
+                pickupExecutor.schedule(()->oms.pickupOrder(order,actions), 500, TimeUnit.MILLISECONDS);
                 /*new Thread(() -> {
                     Thread.currentThread().setName(order.getId());
                     *//*try {
@@ -103,7 +103,7 @@ public class Main implements Runnable {
         Iterator<Order> iterator = orderQueue.iterator();
         while(iterator.hasNext()){
             Order order = iterator.next();
-            oms.pickupOrder(order.getId(), actions);
+            oms.pickupOrder(order, actions);
             iterator.remove();
         }
     }
