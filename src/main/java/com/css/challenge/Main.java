@@ -6,10 +6,8 @@ import com.css.challenge.client.Order;
 import com.css.challenge.client.Problem;
 import java.io.IOException;
 import java.time.Duration;
-import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
+import java.util.concurrent.*;
 
 import com.css.challenge.management.OrderManagementSystem;
 import org.apache.log4j.Level;
@@ -22,6 +20,7 @@ import picocli.CommandLine.Option;
 @Command(name = "challenge", showDefaultValues = true)
 public class Main implements Runnable {
     private static final Logger LOGGER = LoggerFactory.getLogger(Main.class);
+    public static final Queue<Order> orderQueue = new LinkedBlockingQueue<>();
 
     static {
         org.apache.log4j.Logger.getRootLogger().setLevel(Level.OFF);
@@ -57,35 +56,55 @@ public class Main implements Runnable {
 
             // ------ Simulation harness logic goes here using rate, min and max ----
 
+            ExecutorService pickupExecutor = Executors.newFixedThreadPool(problem.getOrders().size());
             OrderManagementSystem oms = new OrderManagementSystem();
             Random random = new Random();
             List<Action> actions = new ArrayList<>();
             for (Order order : problem.getOrders()) {
                 LOGGER.info("Received: {}", order);
+
                 oms.placeOrder(order, actions);
-
-                //actions.add(new Action(Instant.now(), order.getId(), Action.PLACE));
+                LOGGER.info("Order placed "+order.getId());
                 Thread.sleep(rate.toMillis());
-
                 // Schedule pickup after a random delay (4-8 seconds)
-                new Thread(() -> {
+                pickupExecutor.execute(()->oms.pickupOrder(order.getId(),actions));
+                /*new Thread(() -> {
                     Thread.currentThread().setName(order.getId());
-                    try {
-                        Thread.sleep(random.nextInt(4000) + 2000); // 4-8 seconds
+                    *//*try {
+                        Thread.sleep(random.nextInt(4500)); // 4-8 seconds
                     } catch (InterruptedException e) {
                         e.printStackTrace();
-                    }
-                    oms.pickupOrder(order.getId(), actions);
-                }).start();
-            }
+                    }*//*
+                    oms.pickupOrder(order.getId(), actions, orderQueue);
+                }).start();*/
 
+                //actions.add(new Action(Instant.now(), order.getId(), Action.PLACE));
+
+                pickupExecutor.execute(()->processUnpickedOrders(orderQueue, actions, oms));
+
+            }
+            pickupExecutor.shutdownNow(); // Interrupt pickup threads
+            pickupExecutor.awaitTermination(10, TimeUnit.SECONDS);
             // ----------------------------------------------------------------------
 
+
+            Thread.sleep(Duration.ofMillis(6000).toMillis());
             String result = client.solveProblem(problem.getTestId(), rate, min, max, actions);
             LOGGER.info("Result: {}", result);
 
         } catch (IOException | InterruptedException e) {
             LOGGER.error("Simulation failed: {}", e.getMessage());
+        }
+
+
+    }
+
+    private void processUnpickedOrders(Queue<Order> orderQueue, List<Action> actions, OrderManagementSystem oms){
+        Iterator<Order> iterator = orderQueue.iterator();
+        while(iterator.hasNext()){
+            Order order = iterator.next();
+            oms.pickupOrder(order.getId(), actions);
+            iterator.remove();
         }
     }
 

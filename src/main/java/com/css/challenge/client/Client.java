@@ -88,6 +88,9 @@ public class Client {
         LOGGER.info(action.toString());
       }
 
+      LOGGER.info("Rate ====="+rate);
+    LOGGER.info("Min ====="+min);
+    LOGGER.info("Max ====="+max);
     Solution solution = new Solution(new Options(rate, min, max), actions);
 
     URL url = new URL(endpoint + "/interview/challenge/solve?auth=" + auth);
