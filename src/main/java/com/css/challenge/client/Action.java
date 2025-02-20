@@ -1,8 +1,5 @@
 package com.css.challenge.client;
 
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
-
 /** Action is a json-friendly representation of an action. */
 public class Action {
   public static final String PLACE = "place";
@@ -14,8 +11,8 @@ public class Action {
   private final String id; // order id
   private String action; // place, move, pickup or discard
 
-  public Action(Instant timestamp, String id, String action) {
-    this.timestamp = ChronoUnit.MICROS.between(Instant.EPOCH, timestamp);
+  public Action(long timestamp, String id, String action) {
+    this.timestamp = timestamp;
     this.id = id;
     this.action = action;
   }

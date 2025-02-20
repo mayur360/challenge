@@ -9,7 +9,6 @@ import org.slf4j.LoggerFactory;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class Storage {
@@ -24,25 +23,20 @@ public class Storage {
     }
 
     public boolean addOrder(Order order) {
-        LOGGER.info("adding order in storage");
         if (orders.size() < capacity) {
             orders.add(order);
-            LOGGER.info("Order added in ConcurrentQueue");
             return true;
         }
-        LOGGER.info("After moving order to shelf, check items in shelf "+checkOrdersInStorage());
         return false;
     }
 
     public boolean moveOrder(Order order){
-        LOGGER.info("Storage: MoveOrder "+order.getId());
         if(orders.size() < capacity){
             int orderFreshness = order.getFreshness();
             order.setFreshness(orderFreshness/2);
             orders.add(order);
             return true;
         }
-        LOGGER.info("Items in Storage : "+ checkOrdersInStorage());
         return false;
     }
 
@@ -54,38 +48,25 @@ public class Storage {
         return orders.size() >= capacity;
     }
 
-    public ConcurrentLinkedQueue<Order> getOrders() {
-        return orders;
-    }
-
     public boolean pickupOrder(String orderId, List<Action> actions){
-        LOGGER.info(orderId+" in Storage PickUpOrder");
         Order orderToPick = orders.stream().filter(order -> order.getId().equals(orderId)).findFirst().orElse(null);
-        LOGGER.info(orderToPick+" in storage PickUpOrder");
         if(orderToPick == null){
             return false;
         }
         long now = ChronoUnit.MICROS.between(Instant.EPOCH, Instant.now());
         long orderTimestamp = orderToPick.getTimestamp();
-        LOGGER.info("Storage : now "+now+" & orderTimestamp "+orderTimestamp);
-        float timeLapsAfterPlacingOrder = (now - orderTimestamp)/1000000;
-        LOGGER.info("Storage : timeLapsAfterPlacingOrder value is "+timeLapsAfterPlacingOrder);
+        float timeLapsAfterPlacingOrder = (now - orderTimestamp)/Long.parseLong(Main.get("epoch.to.seconds"));
         if(timeLapsAfterPlacingOrder > 8){
-            LOGGER.info(orderId+" is discarded in Shelf during pick up");
             if(removeOrder(orderId)){
-                actions.add(new Action(Instant.now(), orderId, Action.DISCARD));
+                long orderDiscardTimestamp = ChronoUnit.MICROS.between(Instant.EPOCH, Instant.now());
+                actions.add(new Action(orderDiscardTimestamp, orderId, Action.DISCARD));
             }
             return false;
         }
         if(timeLapsAfterPlacingOrder >= 4 && timeLapsAfterPlacingOrder < 8){
-            LOGGER.info("Storage : Pick up order "+orderId);
             return removeOrder(orderId);
         }
-        Main.orderQueue.add(orderToPick);
         return false;
     }
 
-    public int checkOrdersInStorage(){
-        return orders.size();
-    }
 }

@@ -23,10 +23,20 @@ dependencies {
     // https://github.com/simple-http/simple-http
     implementation 'com.simple-http:simple-http:1.4'
     implementation 'org.slf4j:slf4j-jdk14:2.0.3'
+
+
+    //Test
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.9.1' // JUnit 5
+    testImplementation 'org.mockito:mockito-core:4.8.1' // Mockito for mocking
+    testImplementation 'org.assertj:assertj-core:3.24.2'
 }
 
 ext {
     javaMainClass = "com.css.challenge.Main"
+}
+
+test {
+    useJUnitPlatform() // Ensure JUnit 5 is used
 }
 
 application {

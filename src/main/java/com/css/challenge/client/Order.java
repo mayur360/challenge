@@ -36,10 +36,6 @@ public class Order {
     return id;
   }
 
-  public String getName() {
-    return name;
-  }
-
   public String getTemp() {
     return temp;
   }

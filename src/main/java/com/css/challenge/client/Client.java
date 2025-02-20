@@ -81,25 +81,17 @@ public class Client {
    * Returns test result.
    */
   public String solveProblem(
-      String testId, Duration rate, Duration min, Duration max, List<Action> actions)
-      throws IOException {
-      LOGGER.info("Printing all ations");
-      for (Action action : actions) {
-        LOGGER.info(action.toString());
-      }
-
-      LOGGER.info("Rate ====="+rate);
-    LOGGER.info("Min ====="+min);
-    LOGGER.info("Max ====="+max);
+          String testId, Duration rate, Duration min, Duration max, List<Action> actions)
+          throws IOException {
     Solution solution = new Solution(new Options(rate, min, max), actions);
 
     URL url = new URL(endpoint + "/interview/challenge/solve?auth=" + auth);
     HttpResponse response =
-        client.post(
-            url,
-            new UnencodedStringMessage(
-                solution.encode(),
-                headers(header("Content-Type", "application/json"), header("x-test-id", testId))));
+            client.post(
+                    url,
+                    new UnencodedStringMessage(
+                            solution.encode(),
+                            headers(header("Content-Type", "application/json"), header("x-test-id", testId))));
     if (!response.ok()) {
       throw new IOException(url + ": " + response.getStatusMessage());
     }
